@@ -1,0 +1,244 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#10251b">
+<title>SAI SANTHOME</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#101914;color:white;font-family:Arial,sans-serif}
+header{background:#183c2b;padding:20px;text-align:center}
+header h2{margin:0;color:#fff}
+header p{margin:6px 0 0;color:#c6dfce;font-size:12px}
+nav{display:flex;overflow:auto;background:#1b2b22}
+nav button{flex:1;min-width:85px;padding:14px 8px;border:0;background:none;color:white}
+nav button.active{background:#2c6946}
+main{padding:16px;max-width:650px;margin:auto}
+section{display:none}
+section.active{display:block}
+.card{background:#1c2921;padding:16px;border-radius:12px;margin-bottom:14px}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.stat{background:#25382c;padding:16px;border-radius:10px}
+.stat strong{display:block;font-size:25px;margin-top:8px}
+input,select{width:100%;padding:12px;margin:7px 0;background:#26372c;color:white;border:1px solid #526b58;border-radius:7px}
+button.primary{background:#267346;color:white;border:0;padding:12px;border-radius:7px;width:100%;margin-top:8px}
+button.small{padding:7px;border:0;border-radius:5px;margin:3px}
+.player{padding:12px;background:#26372c;border-radius:8px;margin:8px 0}
+.status{display:flex;gap:5px;margin-top:8px}
+.status button{flex:1;padding:9px;border:0;border-radius:5px}
+.present{background:#247447;color:white}
+.absent{background:#a33b3b;color:white}
+.leave{background:#a47a25;color:white}
+.muted{color:#b9c9be;font-size:13px}
+</style>
+</head>
+<body>
+
+<header>
+<h2>SAI SANTHOME</h2>
+<p>FOOTBALL ACADEMY • ATTENDANCE MANAGEMENT</p>
+</header>
+
+<nav>
+<button class="active" onclick="show('dashboard',this)">Dashboard</button>
+<button onclick="show('players',this)">Players</button>
+<button onclick="show('attendance',this)">Attendance</button>
+<button onclick="show('reports',this)">Reports</button>
+</nav>
+
+<main>
+<section id="dashboard" class="active">
+<h3>Dashboard</h3>
+<div class="stats">
+<div class="stat">Total Players<strong id="total">0</strong></div>
+<div class="stat">Present Today<strong id="presentCount">0</strong></div>
+<div class="stat">Absent Today<strong id="absentCount">0</strong></div>
+<div class="stat">On Leave<strong id="leaveCount">0</strong></div>
+</div>
+<div class="card">
+<h3>Today's Session</h3>
+<p id="today"></p>
+<p class="muted">SAI SANTHOME Football Academy</p>
+</div>
+</section>
+
+<section id="players">
+<h3>Player Management</h3>
+<div class="card">
+<input id="playerName" placeholder="Player full name">
+<select id="team">
+<option>U11</option><option>U14</option>
+<option>U17</option><option>Senior</option>
+</select>
+<input id="jersey" placeholder="Jersey number" type="number">
+<button class="primary" onclick="addPlayer()">+ Add Player</button>
+</div>
+<div id="playerList"></div>
+</section>
+
+<section id="attendance">
+<h3>Mark Attendance</h3>
+<div class="card">
+<label>Date</label>
+<input type="date" id="date">
+<label>Team</label>
+<select id="attTeam" onchange="renderAttendance()">
+<option>U11</option><option>U14</option>
+<option>U17</option><option>Senior</option>
+</select>
+<label>Session</label>
+<select id="session">
+<option>Morning</option><option>Evening</option><option>Other</option>
+</select>
+</div>
+<div id="attendanceList"></div>
+</section>
+
+<section id="reports">
+<h3>Attendance Reports</h3>
+<div class="card">
+<label>Month</label>
+<input type="month" id="month">
+<button class="primary" onclick="report()">View Monthly Report</button>
+<button class="primary" onclick="exportCSV()">Export CSV</button>
+</div>
+<div id="reportOutput"></div>
+</section>
+</main>
+
+<script>
+const load=(key,fallback)=>{
+ try{return JSON.parse(localStorage.getItem(key))||fallback}
+ catch{return fallback}
+};
+let players=load("sai_players",[]);
+let records=load("sai_attendance",{});
+
+function save(){
+ localStorage.setItem("sai_players",JSON.stringify(players));
+ localStorage.setItem("sai_attendance",JSON.stringify(records));
+ update();
+}
+function show(id,btn){
+ document.querySelectorAll("main section").forEach(s=>s.classList.remove("active"));
+ document.getElementById(id).classList.add("active");
+ document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
+ btn.classList.add("active");
+ if(id==="attendance")renderAttendance();
+ if(id==="players")renderPlayers();
+}
+function addPlayer(){
+ let name=document.getElementById("playerName").value.trim();
+ let team=document.getElementById("team").value;
+ let jersey=document.getElementById("jersey").value;
+ if(!name){alert("Enter player name");return}
+ players.push({id:Date.now(),name,team,jersey});
+ document.getElementById("playerName").value="";
+ document.getElementById("jersey").value="";
+ save();renderPlayers();
+}
+function deletePlayer(id){
+ if(!confirm("Delete this player?"))return;
+ players=players.filter(p=>p.id!==id);
+ save();renderPlayers();
+}
+function renderPlayers(){
+ document.getElementById("playerList").innerHTML=players.map(p=>`
+ <div class="player">
+ <strong>${safe(p.name)}</strong>
+ <p class="muted">${safe(p.team)} • Jersey: ${safe(p.jersey||"-")}</p>
+ <button class="small absent" onclick="deletePlayer(${p.id})">Delete</button>
+ </div>`).join("")||"<p class='muted'>No players registered yet.</p>";
+}
+function safe(value){
+ return String(value).replace(/[&<>"']/g,c=>({
+ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+ }[c]));
+}
+function key(){
+ return [date.value,attTeam.value,session.value].join("_");
+}
+function renderAttendance(){
+ let list=players.filter(p=>p.team===attTeam.value);
+ let data=records[key()]||{};
+ document.getElementById("attendanceList").innerHTML=list.map(p=>{
+ let status=data[p.id]||"";
+ return `<div class="player">
+ <strong>${safe(p.name)}</strong>
+ <div class="status">
+ <button class="present" onclick="mark(${p.id},'Present')">Present</button>
+ <button class="absent" onclick="mark(${p.id},'Absent')">Absent</button>
+ <button class="leave" onclick="mark(${p.id},'Leave')">Leave</button>
+ </div>
+ <p class="muted">Status: ${status||"Not marked"}</p>
+ </div>`;
+ }).join("")||"<p class='muted'>No players in this team.</p>";
+}
+function mark(id,status){
+ let k=key();
+ if(!records[k])records[k]={};
+ records[k][id]=status;
+ save();renderAttendance();
+}
+function update(){
+ document.getElementById("total").textContent=players.length;
+ let todayKey=date.value+"_";
+ let counts={Present:0,Absent:0,Leave:0};
+ Object.entries(records).forEach(([k,v])=>{
+ if(k.startsWith(date.value+"_")){
+ Object.values(v).forEach(s=>counts[s]++);
+ }
+ });
+ document.getElementById("presentCount").textContent=counts.Present;
+ document.getElementById("absentCount").textContent=counts.Absent;
+ document.getElementById("leaveCount").textContent=counts.Leave;
+}
+function report(){
+ let month=document.getElementById("month").value;
+ let counts={};
+ players.forEach(p=>counts[p.id]={name:p.name,team:p.team,Present:0,Absent:0,Leave:0});
+ Object.entries(records).forEach(([k,v])=>{
+ if(k.startsWith(month)){
+ Object.entries(v).forEach(([id,status])=>{
+ if(counts[id])counts[id][status]++;
+ });
+ }
+ });
+ document.getElementById("reportOutput").innerHTML=
+ Object.values(counts).map(p=>`
+ <div class="player">
+ <strong>${safe(p.name)} (${safe(p.team)})</strong>
+ <p class="muted">Present: ${p.Present} | Absent: ${p.Absent} | Leave: ${p.Leave}</p>
+ </div>`).join("")||"No report available.";
+}
+function exportCSV(){
+ let rows=[["Date","Team","Session","Player ID","Status"]];
+ Object.entries(records).forEach(([k,v])=>{
+ let [d,t,s]=k.split("_");
+ Object.entries(v).forEach(([id,status])=>{
+ rows.push([d,t,s,id,status]);
+ });
+ });
+ let csv=rows.map(r=>r.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(",")).join("\n");
+ let blob=new Blob([csv],{type:"text/csv"});
+ let a=document.createElement("a");
+ a.href=URL.createObjectURL(blob);
+ a.download="SAI_SANTHOME_Attendance.csv";
+ a.click();
+ URL.revokeObjectURL(a.href);
+}
+const date=document.getElementById("date");
+date.value=new Date().toLocaleDateString("en-CA");
+document.getElementById("today").textContent=date.value;
+document.getElementById("month").value=date.value.slice(0,7);
+date.addEventListener("change",()=>{update();renderAttendance()});
+document.getElementById("session").addEventListener("change",renderAttendance);
+update();
+renderPlayers();
+renderAttendance();
+</script>
+</body>
+  </html>
+  
